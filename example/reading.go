@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/zenwerk/go-wave"
+	"github.com/ieee0824/go-wave"
 )
 
 func main() {

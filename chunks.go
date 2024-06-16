@@ -1,8 +1,9 @@
 package wave
 
 import (
-	"bytes"
 	"io"
+
+	"github.com/ieee0824/go-wave/bytes"
 )
 
 const (
@@ -60,5 +61,5 @@ type DataReaderChunk struct {
 type DataWriterChunk struct {
 	ID   []byte
 	Size uint32
-	Data *bytes.Buffer
+	Data bytes.Buffer
 }

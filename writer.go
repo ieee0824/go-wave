@@ -1,10 +1,13 @@
 package wave
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
+
+	std_buffer "bytes"
+
+	"github.com/ieee0824/go-wave/bytes"
 )
 
 type WriterParam struct {
@@ -53,14 +56,14 @@ func NewWriter(param WriterParam) (*Writer, error) {
 	// data chunk
 	w.dataChunk = &DataWriterChunk{
 		ID:   []byte(dataChunkToken),
-		Data: bytes.NewBuffer([]byte{}),
+		Data: bytes.New(4096),
 	}
 
 	return w, nil
 }
 
 func (w *Writer) WriteSample8(samples []uint8) (int, error) {
-	buf := new(bytes.Buffer)
+	buf := new(std_buffer.Buffer)
 
 	for i := 0; i < len(samples); i++ {
 		err := binary.Write(buf, binary.LittleEndian, samples[i])
@@ -68,12 +71,13 @@ func (w *Writer) WriteSample8(samples []uint8) (int, error) {
 			return 0, err
 		}
 	}
-	n, err := w.Write(buf.Bytes())
-	return n, err
+	// n, err := w.Write(buf.Bytes())
+	n, err := io.Copy(w, buf)
+	return int(n), err
 }
 
 func (w *Writer) WriteSample16(samples []int16) (int, error) {
-	buf := new(bytes.Buffer)
+	buf := new(std_buffer.Buffer)
 
 	for i := 0; i < len(samples); i++ {
 		err := binary.Write(buf, binary.LittleEndian, samples[i])
@@ -81,8 +85,10 @@ func (w *Writer) WriteSample16(samples []int16) (int, error) {
 			return 0, err
 		}
 	}
-	n, err := w.Write(buf.Bytes())
-	return n, err
+	// n, err := w.Write(buf.Bytes())
+	n, err := io.Copy(w, buf)
+
+	return int(n), err
 }
 
 func (w *Writer) WriteSample24(samples []byte) (int, error) {
@@ -121,10 +127,8 @@ func (ew *errWriter) Write(order binary.ByteOrder, data interface{}) {
 }
 
 func (w *Writer) Close() error {
-	data := w.dataChunk.Data.Bytes()
-	dataSize := uint32(len(data))
-	w.riffChunk.Size = uint32(len(w.riffChunk.ID)) + (8 + w.fmtChunk.Size) + (8 + dataSize)
-	w.dataChunk.Size = dataSize
+	w.riffChunk.Size = uint32(len(w.riffChunk.ID)) + (8 + w.fmtChunk.Size) + (8 + w.dataChunk.Data.DataSize())
+	w.dataChunk.Size = w.dataChunk.Data.DataSize()
 
 	ew := &errWriter{w: w.out}
 	// riff chunk
@@ -145,13 +149,17 @@ func (w *Writer) Close() error {
 		return ew.err
 	}
 
-	_, err := w.out.Write(data)
+	// _, err := w.out.Write(w.dataChunk.Data.Bytes())
+	_, err := io.Copy(w.out, w.dataChunk.Data)
 	if err != nil {
 		return err
 	}
 
-	err = w.out.Close()
-	if err != nil {
+	if err := w.out.Close(); err != nil {
+		return err
+	}
+
+	if err := w.dataChunk.Data.Close(); err != nil {
 		return err
 	}
 
